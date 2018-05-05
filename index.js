@@ -2,6 +2,20 @@ var app = require('express')();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 
+var users = [];
+
+const names = [
+  'Jean-Marc',              'Jean-Michel',            'Jean-Jean',
+  'Jean-Eudes',             'Jean-Pierre',            'Jean-Jacques',
+  'Jean-Marie',             'Jean-Benoît',            'Jean-Bernard',
+  'Jean-Kévin',             'Jean-Baptiste',          'Jean-Christophe',
+  'Jean-François',          'Jean-Louis',             'Jean-Paul',
+  'Jean-Phillipe',          'Jean-Sébastien',         'Jean-Yves',
+  'Jean-Luc',               'Jean-Loup',              'Jean-Bon',
+  'Jean-Moi-même',          'Jean-Patrick',           'Jean-Claude',
+  'Jean-Noël',              'Jean-Aimé',              'Pierre-Jean (surprenant !)'
+];
+
 // Time handling
 var requestTime = function (req, res, next) {
   req.requestTime = Date.now();
@@ -19,15 +33,34 @@ app.get(/^\/.*/, function(req, res){
 
 // Socket managing
 io.on('connection', function(socket){
-  console.log('a user connected');
+  // Log in
+  // When a user log in, a random nickname is given to him.
+  console.log('login : ' + socket.id);
+  users[socket.id] = names[Math.floor(Math.random() * names.length)];
+  io.emit('user logged', {id: socket.id, name: users[socket.id]});
 
+  // Log out
   socket.on('disconnect', function(){
-    console.log('user disconnected');
+    console.log('logout : ' + socket.id);
+    delete users[socket.id];
+    io.emit('user unlogged', {id: socket.id, name: users[socket.id]});
   });
 
-  socket.on('chat message', function(msg){
-    console.log('message: ' + msg);
-    io.emit('chat message', msg);
+  // Message sent
+  socket.on('chat message', function(data){
+    console.log('message from ' + socket.id + ': ' + data.content);
+    io.emit('chat message', {
+      user: {id: socket.id, name: users[socket.id]},
+      date: data.date,
+      content: data.content
+    });
+  });
+
+  // User rename
+  socket.on('user rename', function(name){
+    console.log('user ' + socket.id + ' renamed ' + name);
+    users[socket.io] = name;
+    io.emit('user renamed', {id: socket.id, name: name});
   });
 });
 

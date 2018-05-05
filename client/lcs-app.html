@@ -40,7 +40,7 @@
         }
         .messages {
           flex: 1;
-          margin: 0; padding: 2rem;
+          margin: 0; padding: 2rem 2rem 0;
           overflow: auto;
         }
       </style>
@@ -52,29 +52,49 @@
           <lcs-messages class="messages" id="lcs-message-list"></lcs-messages>
           <lcs-input class="bottom" id="lcs-message-field"></lcs-input>
         </div>
-        <div class="right"></div>
+        <div class="right">
+          <lcs-users id="lcs-user-list"></lcs-users>
+        </div>
       </div>
     </template>
 
     <script>
       var cedoc = document.currentScript.ownerDocument;
 
+      /**
+       * Represent the chat app itself and manage its events.
+       * @member {io.Socket} socket - Socket.io interface.
+       * @member {Object} users - array containing all users' nicknames, with userid as key.
+       */
       class LcsAppElement extends HTMLElement {
 
         constructor(){
           super();
           this.template = cedoc.querySelector('#lcs-app-template');
           this.attachShadow({mode: 'open'});
+
           this.socket = io();
+          this.users = {};
+
+          this.socket.on('connect', () => {
+            // socket io events
+            this.socket.on('user logged', this.registerUser.bind(this));
+            this.socket.on('user unlogged', this.unregisterUser.bind(this));
+            this.socket.on('chat message', this.recieveMessage.bind(this));
+            this.socket.on('user renamed', this.updateRenamedUser.bind(this));
+          });
+
         }
 
         connectedCallback () {
           this.shadowRoot.appendChild(this.template.content.cloneNode(true));
-          this.lcsMessageField = this.shadowRoot.querySelector('#lcs-message-field');
           this.lcsMessageList = this.shadowRoot.querySelector('#lcs-message-list');
+          this.lcsMessageField = this.shadowRoot.querySelector('#lcs-message-field');
+          this.lcsUserList = this.shadowRoot.querySelector('#lcs-user-list');
 
-          this.lcsMessageField.addEventListener('submit', this.sendMessage.bind(this));
-          this.socket.on('chat message', this.recieveMessage.bind(this));
+          // user events
+          this.lcsMessageField.addEventListener('submit', this.sendMessageCallback.bind(this));
+          this.lcsUserList.addEventListener('change-username', this.renameSelfCallback.bind(this));
         }
 
         disconnectedCallback () {
@@ -82,14 +102,87 @@
           this.socket.off('chat message', this.recieveMessage.bind(this));
         }
 
-        sendMessage (e) {
-          console.log('send message');
-          this.socket.emit('chat message', e.detail);
+        /**
+         * Register a new user with id and nickname.
+         * @user {Object} user shaped like {id, name}.
+         */
+        registerUser (user) {
+          this.users[user.id] = user.name;
+          console.log('user connected: ' + user.name + ' (' + user.id + ')');
+          if(user.id !== this.socket.id) {
+            this.lcsUserList.append(user);
+          } else {
+            this.lcsUserList.setUserName(user.name);
+          }
+        }
+
+        /**
+         * Unregister a new user with the given id.
+         * @user {Object} user shaped like {id, name}.
+         */
+        unregisterUser (user) {
+          console.log('user disconnected: ' + user.name + ' (' + user.id + ')');
+          delete this.users[user.id];
+          this.lcsUserList.remove(user.id);
+        }
+
+        /**
+         * Rename globally the current user. (Send information to the server)
+         * @param {String} name - new nickname to be used.
+         */
+        renameSelf (name) {
+          this.socket.emit('user rename', name);
+        }
+
+        /**
+         * Rename locally the user with the given id. (Do NOT send information to the server)
+         * @user {Object} user shaped like {id, name}.
+         */
+         updateRenamedUser (user) {
+          console.log(this.users[user.id] + ' (' + user.id + ') renamed to ' + user.name);
+          this.users[user.id] = user.name;
+          this.lcsUserList.renameUser(user.id, user.name);
+        }
+
+        /**
+         * Rename the logged user.
+         * @param {Event} e - event. The new nickname has to be in e.detail.
+         */
+        renameSelfCallback (e) {
+          console.log('rename current user...');
+          this.renameSelf(e.detail);
+        }
+
+        /**
+         * Send a chat message to the server and other users.
+         * The author of the message will be the user logged in.
+         * @param {Event} e - event. The message content has to be in e.detail.message.
+         */
+        sendMessageCallback (e) {
+          let data = {
+            date: Date.now(),
+            content: e.detail.message
+          };
+          this.sendMessage(data);
           this.lcsMessageField.reset();
         }
 
+        /**
+         * Send a chat message to the server and other users.
+         * @param {Object} data - An anonymous message shaped like {content, date}.
+         */
+        sendMessage (data) {
+          //console.log('You, ' + this.users[this.socket.id] + ' (' + this.socket.id + ') say : ' + data.content);
+          this.socket.emit('chat message', data);
+        }
+
+        /**
+         * This method is called when a chat message is recevied.
+         * You can also simulate a recevied message by manually calling it.
+         * @param {Object} data - A message shaped like {user, content, date}.
+         */
         recieveMessage (data) {
-          console.log('recieved');
+          console.log(data.user.name + ' (' + data.user.id + ') says : ' + data.content);
           this.lcsMessageList.append(data);
         }
 
@@ -100,28 +193,32 @@
     <!-- LCS INPUT -------------------------------------------------------------------------------------- -->
 
     <template id="lcs-input-template">
-    <style>
-      *{box-sizing: border-box;}
-      .lcs-form {
-        display: flex; flex-flow: row nowrap;
-      }
-      textarea {
-        flex: 1;
-      }
-      button {
-        flex: 0;
-      }
-    </style>
-    <form class="lcs-form">
-      <textarea id="lcs-textarea"
-        placeholder="Type something here..."
-      ></textarea>
-      <button>Envoyer</button>
-    </form>
+      <style>
+        *{box-sizing: border-box;}
+        .lcs-form {
+          display: flex; flex-flow: row nowrap;
+        }
+        textarea {
+          flex: 1;
+        }
+        button {
+          flex: 0;
+        }
+      </style>
+      <form class="lcs-form">
+        <textarea id="lcs-textarea"
+          placeholder="Type something here..."
+        ></textarea>
+        <button>Envoyer</button>
+      </form>
     </template>
 
     <script>
       var cedoc = document.currentScript.ownerDocument;
+
+      /**
+       * Represents a custom input elment with a send button, and submit when the user type Enter.
+       */
       class LcsInputElement extends HTMLElement {
 
         constructor(){
@@ -143,14 +240,25 @@
         checkForEnter (e) {
           if(e.code === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            this.dispatchEvent(
-              new CustomEvent('submit', {detail: {message: this.lcsTextarea.value}})
-            );
+            this.submit();
           }
         }
 
+        /**
+         * Clear the input's content without submit the message.
+         */
         reset () {
           this.lcsTextarea.value = '';
+        }
+
+        /**
+         * Submit the message. Content is not cleared.
+         * Emits a CustomEvent containg {message:<typed content>} in event.detail.
+         */
+        submit () {
+          this.dispatchEvent(
+            new CustomEvent('submit', {detail: {message: this.lcsTextarea.value}})
+          );
         }
 
       }
@@ -180,38 +288,152 @@
         }
       </style>
       <ul class="lcs-messages" id="lcs-message-ul"></ul>
-      </template>
+    </template>
 
-      <script>
-        var cedoc = document.currentScript.ownerDocument;
-        class LcsMessagesElement extends HTMLElement {
+    <script>
+      var cedoc = document.currentScript.ownerDocument;
 
-          constructor(){
-            super();
-            this.template = cedoc.querySelector('#lcs-messages-template');
-            this.attachShadow({mode: 'open'});
-          }
+      /**
+       * Represents a message list
+       */
+      class LcsMessagesElement extends HTMLElement {
 
-          connectedCallback () {
-            this.shadowRoot.appendChild(this.template.content.cloneNode(true));
-            this.lcsMessageUl = this.shadowRoot.querySelector('#lcs-message-ul');
-          }
-
-          disconnectedCallback () {}
-
-          reset () {
-            this.lcsMessageUl.innerHTML = '';
-          }
-
-          append(msg) {
-            let li = cedoc.createElement('li');
-            li.innerHTML = msg.message;
-            this.lcsMessageUl.appendChild(li);
-          }
-
+        constructor(){
+          super();
+          this.template = cedoc.querySelector('#lcs-messages-template');
+          this.attachShadow({mode: 'open'});
         }
-        window.customElements.define('lcs-messages', LcsMessagesElement);
-      </script>
+
+        connectedCallback () {
+          this.shadowRoot.appendChild(this.template.content.cloneNode(true));
+          this.lcsMessageUl = this.shadowRoot.querySelector('#lcs-message-ul');
+        }
+
+        disconnectedCallback () {}
+
+        /**
+         * Clear all messages displayed.
+         */
+        reset () {
+          this.lcsMessageUl.innerHTML = '';
+        }
+
+        /**
+         * Add a message to the end of the list.
+         * @param {Object} msg - A message shaped like {user, date, content}.
+         */
+        append(msg) {
+          let li = cedoc.createElement('li');
+          li.innerHTML = msg.user.name + ' : « ' + msg.content + ' »';
+          this.lcsMessageUl.appendChild(li);
+        }
+
+      }
+      window.customElements.define('lcs-messages', LcsMessagesElement);
+    </script>
+
+<!-- LCS USERS -------------------------------------------------------------------------------------- -->
+
+    <template id="lcs-users-template">
+      <style>
+        *{box-sizing: border-box;}
+        ul {
+          margin: 0;
+          padding: 0;
+          list-style-type: none;
+          display: flex; flex-flow: column nowrap;
+          align-items: flex-start;
+        }
+        ul>li {
+          padding: 0.4rem 0.5rem;
+          background: #0AADF0;
+          border-radius: 0.4rem;
+          flex: 0;
+        }
+        ul>li+li {
+          margin-top: 0.2rem;
+        }
+      </style>
+      <ul class="lcs-users" id="lcs-user-ul"></ul>
+      <input type="text" id="lcs-username-input" placeholder="Votre nom"/>
+    </template>
+
+    <script>
+      var cedoc = document.currentScript.ownerDocument;
+
+      /**
+       * Represents a message list
+       */
+      class LcsUsersElement extends HTMLElement {
+
+        constructor(){
+          super();
+          this.template = cedoc.querySelector('#lcs-users-template');
+          this.attachShadow({mode: 'open'});
+        }
+
+        connectedCallback () {
+          this.shadowRoot.appendChild(this.template.content.cloneNode(true));
+          this.lcsUserUl = this.shadowRoot.querySelector('#lcs-user-ul');
+          this.lcsUsernameInput = this.shadowRoot.querySelector('#lcs-username-input');
+          this.lcsUsernameInput.addEventListener('change', (e) => {
+            console.log('nickname changed.');
+            this.dispatchEvent(
+              new CustomEvent('change-username', {detail: this.lcsUsernameInput.value})
+            );
+          });
+        }
+
+        disconnectedCallback () {}
+
+        /**
+         * Clear all messages displayed.
+         */
+        reset () {
+          this.lcsUserUl.innerHTML = '';
+        }
+
+        /**
+         * Add a user to the end of the list.
+         * @param {Object} user - A user shaped like {id, name}.
+         */
+        append (user) {
+          let li = cedoc.createElement('li');
+          li.setAttribute('id', 'user-'+user.id)
+          li.innerHTML = user.name;
+          this.lcsUserUl.appendChild(li);
+        }
+
+        /**
+         * Remove a user based on his id
+         * @param {String} userid - Id of the user to remove
+         */
+        remove (userid) {
+          let li = this.shadowRoot.getElementById('user-'+userid);
+          li.remove();
+        }
+
+        /**
+         * Edit the logged user nickname.
+         * @param {String} name - new username
+         */
+        setUserName (name) {
+          this.lcsUsernameInput.value = name;
+        }
+
+        /**
+         * Edit the name of the user with given id.
+         * @param {String} id - user id to be renamed.
+         * @param {String} name - new name.
+         */
+        renameUser (id, name) {
+          let li = this.shadowRoot.getElementById('user-'+id);
+          li.innerHTML = name;
+        }
+
+      }
+      window.customElements.define('lcs-users', LcsUsersElement);
+    </script>
 
   </body>
 </html>
