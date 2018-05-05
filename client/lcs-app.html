@@ -82,6 +82,7 @@
             this.socket.on('user unlogged', this.unregisterUser.bind(this));
             this.socket.on('chat message', this.recieveMessage.bind(this));
             this.socket.on('user renamed', this.updateRenamedUser.bind(this));
+            this.socket.on('users here', this.registerUsers.bind(this));
           });
 
         }
@@ -138,10 +139,20 @@
          * Rename locally the user with the given id. (Do NOT send information to the server)
          * @user {Object} user shaped like {id, name}.
          */
-         updateRenamedUser (user) {
+        updateRenamedUser (user) {
           console.log(this.users[user.id] + ' (' + user.id + ') renamed to ' + user.name);
           this.users[user.id] = user.name;
           this.lcsUserList.renameUser(user.id, user.name);
+        }
+
+        /**
+         * Register all given users.
+         * @param {Object} users - an object like {userid => username} containing several user information.
+         */
+        registerUsers (users) {
+          Object.entries(users).map(function (data) {
+            this.registerUser({id: data[0], name: data[1]});
+          }.bind(this));
         }
 
         /**

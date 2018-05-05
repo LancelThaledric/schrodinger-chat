@@ -2,7 +2,7 @@ var app = require('express')();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 
-var users = [];
+var users = {};
 
 const names = [
   'Jean-Marc',              'Jean-Michel',            'Jean-Jean',
@@ -37,13 +37,15 @@ io.on('connection', function(socket){
   // When a user log in, a random nickname is given to him.
   console.log('login : ' + socket.id);
   users[socket.id] = names[Math.floor(Math.random() * names.length)];
-  io.emit('user logged', {id: socket.id, name: users[socket.id]});
+  socket.broadcast.emit('user logged', {id: socket.id, name: users[socket.id]});
+  console.log(users);
+  socket.emit('users here', users);
 
   // Log out
   socket.on('disconnect', function(){
     console.log('logout : ' + socket.id);
-    delete users[socket.id];
     io.emit('user unlogged', {id: socket.id, name: users[socket.id]});
+    delete users[socket.id];
   });
 
   // Message sent
