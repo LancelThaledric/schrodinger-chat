@@ -1,0 +1,3 @@
+[submodule "webcomponentsjs"]
+	path = webcomponentsjs
+	url = https://github.com/webcomponents/webcomponentsjs
