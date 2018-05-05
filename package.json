@@ -1,0 +1,16 @@
+{
+  "name": "schrodinger-chat",
+  "version": "0.1.0",
+  "description": "A tiny dead or alive chat",
+  "main": "index.js",
+  "repository": "https://github.com/LanscelThaledric/schrodinger-chat",
+  "author": "Lancel Thaledric",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.16.3",
+    "socket.io": "^2.1.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
