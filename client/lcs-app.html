@@ -439,7 +439,9 @@
          */
         append(msg, you=false) {
           if (Array.isArray(msg)) {
-            msg.map(this.append.bind(this));
+            for (let m of msg) {
+              this.append(m);
+            }
           } else {
             let li = cedoc.createElement('li');
             if (you) li.className = 'you';
