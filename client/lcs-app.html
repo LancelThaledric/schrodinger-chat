@@ -128,10 +128,31 @@
           this.template = cedoc.querySelector('#lcs-app-template');
           this.attachShadow({mode: 'open'});
 
+          // Some members
           this.socket = io();
           this.users = {};
           this.isAtBottom = true;
 
+          // Some callback methods not to be called by hand
+          this.boundSendMessageCallback = function (e) {
+            let data = {
+              date: Date.now(),
+              content: e.detail.message
+            };
+            this.sendMessage(data);
+            this.lcsMessageField.reset();
+          }.bind(this);
+
+          this.boundRenameSelfCallback = function (e) {
+            this.renameSelf(e.detail);
+          }.bind(this);
+
+          this.boundScrollCallback = function (e) {
+            let YPosBottom = this.lcsScrollbox.scrollTop + this.lcsScrollbox.clientHeight;
+            this.isAtBottom = YPosBottom >= this.lcsMessageList.scrollHeight - 16;
+          }.bind(this);
+
+          // Socket open
           this.socket.on('connect', () => {
             // socket io events
             this.socket.on('user logged', this.registerUser.bind(this));
@@ -151,17 +172,16 @@
           this.lcsScrollbox = this.shadowRoot.querySelector('#lcs-scrollbox');
 
           // user events
-          this.lcsMessageField.addEventListener('submit', this.sendMessageCallback.bind(this));
-          this.lcsUserList.addEventListener('change-username', this.renameSelfCallback.bind(this));
-          this.lcsScrollbox.addEventListener('scroll', () => {
-            let YPosBottom = this.lcsScrollbox.scrollTop + this.lcsScrollbox.clientHeight;
-            this.isAtBottom = YPosBottom >= this.lcsMessageList.scrollHeight - 16;
-          });
+          this.lcsMessageField.addEventListener('submit', this.boundSendMessageCallback);
+          this.lcsUserList.addEventListener('change-username', this.boundRenameSelfCallback);
+          this.lcsScrollbox.addEventListener('scroll', this.boundScrollCallback);
         }
 
         disconnectedCallback () {
-          this.lcsMessageField.removeEventListener('submit', this.sendMessage.bind(this));
-          this.socket.off('chat message', this.recieveMessage.bind(this));
+          this.lcsMessageField.removeEventListener('submit', this.boundSendMessageCallback);
+          this.lcsUserList.removeEventListener('change-username', this.boundRenameSelfCallback);
+          this.lcsScrollbox.removeEventListener('scroll', this.boundScrollCallback);
+          this.socket.close();
         }
 
         /**
@@ -228,33 +248,10 @@
         }
 
         /**
-         * Rename the logged user.
-         * @param {Event} e - event. The new nickname has to be in e.detail.
-         */
-        renameSelfCallback (e) {
-          this.renameSelf(e.detail);
-        }
-
-        /**
-         * Send a chat message to the server and other users.
-         * The author of the message will be the user logged in.
-         * @param {Event} e - event. The message content has to be in e.detail.message.
-         */
-        sendMessageCallback (e) {
-          let data = {
-            date: Date.now(),
-            content: e.detail.message
-          };
-          this.sendMessage(data);
-          this.lcsMessageField.reset();
-        }
-
-        /**
          * Send a chat message to the server and other users.
          * @param {Object} data - An anonymous message shaped like {content, date}.
          */
         sendMessage (data) {
-          //console.log('You, ' + this.users[this.socket.id] + ' (' + this.socket.id + ') say : ' + data.content);
           this.socket.emit('chat message', data);
         }
 
@@ -318,18 +315,23 @@
           super();
           this.template = cedoc.querySelector('#lcs-input-template');
           this.attachShadow({mode: 'open'});
+
+          // Some allback methods
+          this.boundCheckForEnterCallback = this.checkForEnter.bind(this);
+          this.boundSubmitCallback = this.submit.bind(this);
         }
 
         connectedCallback () {
           this.shadowRoot.appendChild(this.template.content.cloneNode(true));
           this.lcsTextarea = this.shadowRoot.querySelector('#lcs-textarea');
-          this.lcsTextarea.addEventListener('keypress', this.checkForEnter.bind(this));
+          this.lcsTextarea.addEventListener('keypress', this.boundCheckForEnterCallback);
           this.lcsSendButton = this.shadowRoot.querySelector('#lcs-send-button');
-          this.lcsSendButton.addEventListener('click', this.submit.bind(this));
+          this.lcsSendButton.addEventListener('click', this.boundSubmitCallback);
         }
 
         disconnectedCallback () {
-          this.lcsTextarea.removeEventListener('keypress', this.checkForEnter.bind(this));
+          this.lcsTextarea.removeEventListener('keypress', this.boundCheckForEnterCallback);
+          this.lcsSendButton.removeEventListener('click', this.boundSubmitCallback);
         }
 
         checkForEnter (e) {
@@ -422,8 +424,6 @@
           this.shadowRoot.appendChild(this.template.content.cloneNode(true));
           this.lcsMessageUl = this.shadowRoot.querySelector('#lcs-message-ul');
         }
-
-        disconnectedCallback () {}
 
         /**
          * Clear all messages displayed.
@@ -522,20 +522,25 @@
           super();
           this.template = cedoc.querySelector('#lcs-users-template');
           this.attachShadow({mode: 'open'});
+
+          // Some callback
+          this.boundChangeUsernameCallback = function (e) {
+            this.dispatchEvent(
+              new CustomEvent('change-username', {detail: this.lcsUsernameInput.value})
+            );
+          }.bind(this);
         }
 
         connectedCallback () {
           this.shadowRoot.appendChild(this.template.content.cloneNode(true));
           this.lcsUserUl = this.shadowRoot.querySelector('#lcs-user-ul');
           this.lcsUsernameInput = this.shadowRoot.querySelector('#lcs-username-input');
-          this.lcsUsernameInput.addEventListener('change', (e) => {
-            this.dispatchEvent(
-              new CustomEvent('change-username', {detail: this.lcsUsernameInput.value})
-            );
-          });
+          this.lcsUsernameInput.addEventListener('change', this.boundChangeUsernameCallback);
         }
 
-        disconnectedCallback () {}
+        disconnectedCallback () {
+          this.lcsUsernameInput.removeEventListener('change', this.boundChangeUsernameCallback);
+        }
 
         /**
          * Clear all messages displayed.
@@ -578,7 +583,6 @@
          * @param {String} name - new name.
          */
         renameUser (id, name) {
-          console.log('ratatata : ' + id);
           let li = this.shadowRoot.getElementById('user-'+id);
           li.innerHTML = name;
         }
