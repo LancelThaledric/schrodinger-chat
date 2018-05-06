@@ -3,6 +3,7 @@ var http = require('http').Server(app);
 var io = require('socket.io')(http);
 
 var users = {};
+var messages = [];
 
 const names = [
   'Jean-Marc',              'Jean-Michel',            'Jean-Jean',
@@ -38,8 +39,7 @@ io.on('connection', function(socket){
   console.log('login : ' + socket.id);
   users[socket.id] = names[Math.floor(Math.random() * names.length)];
   socket.broadcast.emit('user logged', {id: socket.id, name: users[socket.id]});
-  console.log(users);
-  socket.emit('users here', users);
+  socket.emit('welcome', {users: users, messages: messages});
 
   // Log out
   socket.on('disconnect', function(){
@@ -51,11 +51,13 @@ io.on('connection', function(socket){
   // Message sent
   socket.on('chat message', function(data){
     console.log('message from ' + socket.id + ': ' + data.content);
-    io.emit('chat message', {
+    let message = {
       user: {id: socket.id, name: users[socket.id]},
       date: data.date,
       content: data.content
-    });
+    };
+    io.emit('chat message', message);
+    messages.push(message);
   });
 
   // User rename

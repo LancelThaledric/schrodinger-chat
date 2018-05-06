@@ -65,6 +65,7 @@
        * Represent the chat app itself and manage its events.
        * @member {io.Socket} socket - Socket.io interface.
        * @member {Object} users - array containing all users' nicknames, with userid as key.
+       * @member {Boolean} isAtBottom - if the view is scroll to the bottom or not.
        */
       class LcsAppElement extends HTMLElement {
 
@@ -75,6 +76,7 @@
 
           this.socket = io();
           this.users = {};
+          this.isAtBottom = true;
 
           this.socket.on('connect', () => {
             // socket io events
@@ -82,7 +84,7 @@
             this.socket.on('user unlogged', this.unregisterUser.bind(this));
             this.socket.on('chat message', this.recieveMessage.bind(this));
             this.socket.on('user renamed', this.updateRenamedUser.bind(this));
-            this.socket.on('users here', this.registerUsers.bind(this));
+            this.socket.on('welcome', this.whatsHappening.bind(this));
           });
 
         }
@@ -96,6 +98,10 @@
           // user events
           this.lcsMessageField.addEventListener('submit', this.sendMessageCallback.bind(this));
           this.lcsUserList.addEventListener('change-username', this.renameSelfCallback.bind(this));
+          this.lcsMessageList.addEventListener('scroll', () => {
+            let YPosBottom = this.lcsMessageList.scrollTop + this.lcsMessageList.clientHeight;
+            this.isAtBottom = YPosBottom >= this.lcsMessageList.scrollHeight - 16;
+          });
         }
 
         disconnectedCallback () {
@@ -156,6 +162,15 @@
         }
 
         /**
+         * Recieves current messages and users
+         */
+        whatsHappening (data) {
+          this.registerUsers(data.users);
+          this.lcsMessageList.append(data.messages);
+          this.scrollToBottom();
+        }
+
+        /**
          * Rename the logged user.
          * @param {Event} e - event. The new nickname has to be in e.detail.
          */
@@ -195,6 +210,11 @@
         recieveMessage (data) {
           console.log(data.user.name + ' (' + data.user.id + ') says : ' + data.content);
           this.lcsMessageList.append(data);
+          if (this.isAtBottom) this.scrollToBottom();
+        }
+
+        scrollToBottom () {
+          this.lcsMessageList.scrollTop = this.lcsMessageList.scrollHeight - this.lcsMessageList.clientHeight;
         }
 
       }
@@ -313,6 +333,7 @@
           super();
           this.template = cedoc.querySelector('#lcs-messages-template');
           this.attachShadow({mode: 'open'});
+          this.isAtBottom = true;
         }
 
         connectedCallback () {
@@ -331,12 +352,16 @@
 
         /**
          * Add a message to the end of the list.
-         * @param {Object} msg - A message shaped like {user, date, content}.
+         * @param {Object|Array} msg - A (or an array of these) message shaped like {user, date, content}.
          */
         append(msg) {
-          let li = cedoc.createElement('li');
-          li.innerHTML = msg.user.name + ' : « ' + msg.content + ' »';
-          this.lcsMessageUl.appendChild(li);
+          if (Array.isArray(msg)) {
+            msg.map(this.append.bind(this));
+          } else {
+            let li = cedoc.createElement('li');
+            li.innerHTML = msg.user.name + ' : « ' + msg.content + ' »';
+            this.lcsMessageUl.appendChild(li);
+          }
         }
 
       }
