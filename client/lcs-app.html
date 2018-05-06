@@ -12,16 +12,15 @@
           background: #ECF0F1;
           color: #00002D;
           height: 100vh;
-          display: flex; flex-flow: row nowrap;
+          display: flex; flex-flow: row nowrap; align-items: stretch;
+          overflow: hidden;
         }
         .left {
-          flex: 4;
-          padding-top: 4rem;
-          display: flex; flex-flow: column nowrap;
-          height: 100vh;
+          flex: 1;
+          display: flex; flex-flow: column nowrap; align-items: stretch;
         }
         .right {
-          flex: 1 8rem;
+          flex: 0 25%;
           color: #ECF0F1;
           background: #00002D;
           position: relative; z-index: 10;
@@ -29,19 +28,72 @@
         header {
           position: fixed; z-index: 5;
           top: 0; left: 0; width: 100%; height: 4rem;
-          background: #0AADF0;
         }
         h1 {
-          margin: 0;
-          padding: 1.2rem 1.6rem;
+          margin: 0; height: 4rem;
+          width: calc(75% - 2rem);
+          background: #ECF0F1;
+          display: flex; align-items: center;
+          padding-left: 1.2rem;
+          color: #fff;
+          text-shadow: #0AADF0 0 0.16rem, #EEAB1F 0 0.32rem, #DB0052 0 0.48rem, #00002D 0 0.48rem 0.48rem;
+        }
+        h1::after {
+          content: '';
+          position: absolute; top: 100%; left: 0;
+          width: calc(75% - 2rem); height: 2rem;
+          background: linear-gradient( to bottom,
+            /* 1-((1+cos(pi*(1-x)))/2)^(pi/2) from 0 to 1 */
+            rgba(236, 240, 241, 1.000) 0%,
+            rgba(236, 240, 241, 0.998) 8%,
+            rgba(236, 240, 241, 0.987) 16%,
+            rgba(236, 240, 241, 0.951) 25%,
+            rgba(236, 240, 241, 0.889) 33%,
+            rgba(236, 240, 241, 0.798) 41%,
+            rgba(236, 240, 241, 0.663) 50%,
+            rgba(236, 240, 241, 0.522) 58%,
+            rgba(236, 240, 241, 0.375) 66%,
+            rgba(236, 240, 241, 0.220) 75%,
+            rgba(236, 240, 241, 0.107) 83%,
+            rgba(236, 240, 241, 0.031) 91%,
+            rgba(236, 240, 241, 0.000) 100%
+          );
         }
         .bottom {
-          flex: 0;
+          flex: 0 0 2rem;
+          height: 2rem;
+        }
+        .messages-scrollbox {
+          flex: 1;
+          overflow: auto;
         }
         .messages {
-          flex: 1;
-          margin: 0; padding: 2rem 2rem 0;
-          overflow: auto;
+          padding: 6rem 2rem 2rem;
+          display: block;
+        }
+        .messages::after {
+          content: '';
+          position: fixed; bottom: 2rem; left: 0;
+          width: calc(75% - 2rem); height: 2rem;
+          background: linear-gradient( to top,
+            /* 1-((1+cos(pi*(1-x)))/2)^(pi/2) from 0 to 1 */
+            rgba(236, 240, 241, 1.000) 0%,
+            rgba(236, 240, 241, 0.998) 8%,
+            rgba(236, 240, 241, 0.987) 16%,
+            rgba(236, 240, 241, 0.951) 25%,
+            rgba(236, 240, 241, 0.889) 33%,
+            rgba(236, 240, 241, 0.798) 41%,
+            rgba(236, 240, 241, 0.663) 50%,
+            rgba(236, 240, 241, 0.522) 58%,
+            rgba(236, 240, 241, 0.375) 66%,
+            rgba(236, 240, 241, 0.220) 75%,
+            rgba(236, 240, 241, 0.107) 83%,
+            rgba(236, 240, 241, 0.031) 91%,
+            rgba(236, 240, 241, 0.000) 100%
+          );
+        }
+        .lcs-user-list {
+          display: flex; align-items: stretch; height: 100%;
         }
       </style>
       <div class="lcs-app">
@@ -49,11 +101,13 @@
           <h1>Le Chat de Schrödinger</h1>
         </header>
         <div class="left">
-          <lcs-messages class="messages" id="lcs-message-list"></lcs-messages>
+          <div class="messages-scrollbox" id="lcs-scrollbox">
+            <lcs-messages class="messages" id="lcs-message-list"></lcs-messages>
+          </div>
           <lcs-input class="bottom" id="lcs-message-field"></lcs-input>
         </div>
         <div class="right">
-          <lcs-users id="lcs-user-list"></lcs-users>
+          <lcs-users id="lcs-user-list" class="lcs-user-list"></lcs-users>
         </div>
       </div>
     </template>
@@ -94,12 +148,13 @@
           this.lcsMessageList = this.shadowRoot.querySelector('#lcs-message-list');
           this.lcsMessageField = this.shadowRoot.querySelector('#lcs-message-field');
           this.lcsUserList = this.shadowRoot.querySelector('#lcs-user-list');
+          this.lcsScrollbox = this.shadowRoot.querySelector('#lcs-scrollbox');
 
           // user events
           this.lcsMessageField.addEventListener('submit', this.sendMessageCallback.bind(this));
           this.lcsUserList.addEventListener('change-username', this.renameSelfCallback.bind(this));
-          this.lcsMessageList.addEventListener('scroll', () => {
-            let YPosBottom = this.lcsMessageList.scrollTop + this.lcsMessageList.clientHeight;
+          this.lcsScrollbox.addEventListener('scroll', () => {
+            let YPosBottom = this.lcsScrollbox.scrollTop + this.lcsScrollbox.clientHeight;
             this.isAtBottom = YPosBottom >= this.lcsMessageList.scrollHeight - 16;
           });
         }
@@ -148,7 +203,9 @@
         updateRenamedUser (user) {
           console.log(this.users[user.id] + ' (' + user.id + ') renamed to ' + user.name);
           this.users[user.id] = user.name;
-          this.lcsUserList.renameUser(user.id, user.name);
+          if(user.id !== this.socket.id){
+            this.lcsUserList.renameUser(user.id, user.name);
+          }
         }
 
         /**
@@ -175,7 +232,6 @@
          * @param {Event} e - event. The new nickname has to be in e.detail.
          */
         renameSelfCallback (e) {
-          console.log('rename current user...');
           this.renameSelf(e.detail);
         }
 
@@ -209,12 +265,12 @@
          */
         recieveMessage (data) {
           console.log(data.user.name + ' (' + data.user.id + ') says : ' + data.content);
-          this.lcsMessageList.append(data);
+          this.lcsMessageList.append(data, data.user.id === this.socket.id);
           if (this.isAtBottom) this.scrollToBottom();
         }
 
         scrollToBottom () {
-          this.lcsMessageList.scrollTop = this.lcsMessageList.scrollHeight - this.lcsMessageList.clientHeight;
+          this.lcsScrollbox.scrollTop = this.lcsMessageList.scrollHeight - this.lcsScrollbox.clientHeight;
         }
 
       }
@@ -227,18 +283,24 @@
       <style>
         *{box-sizing: border-box;}
         .lcs-form {
-          display: flex; flex-flow: row nowrap;
+          display: flex; flex-flow: row nowrap; align-items: stretch;
+          height: 2rem;
         }
         textarea {
-          flex: 1;
+          flex: 1; display: block; height: 100%;
+          border: none; background: none; resize: none;
+          padding: 0.2rem 2rem;
         }
         button {
-          flex: 0;
+          flex: 0; display: block; height: 100%;
+          padding: 0.2rem 1rem 0.8rem;
+          border: none; background: none;
+          cursor: pointer;
         }
       </style>
       <form class="lcs-form">
         <textarea id="lcs-textarea"
-          placeholder="Type something here..."
+          placeholder="Dites quelque chose et tapez sur Entrée"
         ></textarea>
         <button>Envoyer</button>
       </form>
@@ -307,15 +369,33 @@
           list-style-type: none;
           display: flex; flex-flow: column nowrap;
           align-items: flex-start;
+          font-size: 0.8rem;
         }
         ul>li {
-          padding: 0.4rem 0.5rem;
-          background: #0AADF0;
-          border-radius: 0.4rem;
+          padding: 0.2rem 0;
           flex: 0;
+          color: rgba(0, 0, 45, 0.5);
         }
         ul>li+li {
           margin-top: 0.2rem;
+        }
+        ul>li .msg-text {
+          color: #00002D;
+          font-weight: bold;
+        }
+        ul>li .msg-author {
+          width: 8rem;
+          display: inline-block;
+        }
+        ul>li.you {
+          align-self: flex-end;
+          color: rgba(10, 173, 240, 0.5);
+        }
+        ul>li.you .msg-author {
+          display: none;
+        }
+        ul>li.you .msg-text {
+          color: #0AADF0;
         }
       </style>
       <ul class="lcs-messages" id="lcs-message-ul"></ul>
@@ -353,13 +433,16 @@
         /**
          * Add a message to the end of the list.
          * @param {Object|Array} msg - A (or an array of these) message shaped like {user, date, content}.
+         * @param {Boolean} you - IS the message yours ?
          */
-        append(msg) {
+        append(msg, you=false) {
           if (Array.isArray(msg)) {
             msg.map(this.append.bind(this));
           } else {
             let li = cedoc.createElement('li');
-            li.innerHTML = msg.user.name + ' : « ' + msg.content + ' »';
+            if (you) li.className = 'you';
+            li.innerHTML =
+              '<span class="msg-author">' + msg.user.name + ' : </span><span class="msg-text">' + msg.content + '</span>';
             this.lcsMessageUl.appendChild(li);
           }
         }
@@ -373,25 +456,56 @@
     <template id="lcs-users-template">
       <style>
         *{box-sizing: border-box;}
+        .lcs-users{
+          display: flex; flex-flow: column nowrap; flex: 1;
+        }
         ul {
           margin: 0;
           padding: 0;
           list-style-type: none;
           display: flex; flex-flow: column nowrap;
           align-items: flex-start;
+          overflow: auto;
         }
         ul>li {
-          padding: 0.4rem 0.5rem;
-          background: #0AADF0;
-          border-radius: 0.4rem;
+          padding: 0 2rem;
           flex: 0;
+          font-weight: bold;
         }
         ul>li+li {
-          margin-top: 0.2rem;
+          margin-top: 1rem;
+        }
+        h2 {
+          margin: 1.6rem 2rem;
+          font-size: 1.2rem;
+          /*text-shadow: #0AADF0 0 0.1rem, #EEAB1F 0 0.2rem, #DB0052 0 0.3rem, #000 0 0.3rem 0.3rem;*/
+          color: #fff;
+          text-shadow: #0882BF 0 0.12rem,
+                       #B38023 0 0.24rem,
+                       #A40049 0 0.32rem,
+                       #000 0 0.32rem 0.32rem;
+        }
+        input {
+          width: 100%; height: 2.6rem; padding: 0 2rem;
+          background: rgba(0, 0, 0, 0.5); border: none;
+          color: inherit;
+          font-weight: bold;
+          box-shadow: #000 0 0 0.4rem;
+          font-size: 1rem;
+          font-family: inherit;
+        }
+        input:focus{
+          background: rgba(0, 0, 0, 0.8);
         }
       </style>
-      <ul class="lcs-users" id="lcs-user-ul"></ul>
-      <input type="text" id="lcs-username-input" placeholder="Votre nom"/>
+      <div class="lcs-users">
+        <h2>Ils sont là :</h2>
+        <ul class="lcs-users" id="lcs-user-ul"></ul>
+        <div class="current-user">
+          <h2>Vous :</h2>
+          <input type="text" id="lcs-username-input" placeholder="Votre nom"/>
+        </div>
+      </div>
     </template>
 
     <script>
@@ -413,7 +527,6 @@
           this.lcsUserUl = this.shadowRoot.querySelector('#lcs-user-ul');
           this.lcsUsernameInput = this.shadowRoot.querySelector('#lcs-username-input');
           this.lcsUsernameInput.addEventListener('change', (e) => {
-            console.log('nickname changed.');
             this.dispatchEvent(
               new CustomEvent('change-username', {detail: this.lcsUsernameInput.value})
             );
@@ -463,6 +576,7 @@
          * @param {String} name - new name.
          */
         renameUser (id, name) {
+          console.log('ratatata : ' + id);
           let li = this.shadowRoot.getElementById('user-'+id);
           li.innerHTML = name;
         }

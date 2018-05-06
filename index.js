@@ -63,7 +63,7 @@ io.on('connection', function(socket){
   // User rename
   socket.on('user rename', function(name){
     console.log('user ' + socket.id + ' renamed ' + name);
-    users[socket.io] = name;
+    users[socket.id] = name;
     io.emit('user renamed', {id: socket.id, name: name});
   });
 });
